@@ -45,6 +45,10 @@ func (k *KeyBuilder) controllerMessages() string {
 	return fmt.Sprintf("/%s/CONTROLLER/MESSAGES", k.ClusterID)
 }
 
+func (k *KeyBuilder) controllerMessage(ID string) string {
+	return fmt.Sprintf("/%s/CONTROLLER/MESSAGES/%s", k.ClusterID, ID)
+}
+
 func (k *KeyBuilder) controllerStatusUpdates() string {
 	return fmt.Sprintf("/%s/CONTROLLER/STATUSUPDATES", k.ClusterID)
 }

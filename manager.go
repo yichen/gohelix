@@ -14,6 +14,7 @@ type (
 	CurrentStateChangeListener   func(instance string, currentState []*Record, context *Context)
 	IdealStateChangeListener     func(idealState []*Record, context *Context)
 	InstanceConfigChangeListener func(configs []*Record, context *Context)
+	ControllerMessageListener    func(messages []*Record, context *Context)
 	MessageListener              func(instance string, messages []*Record, context *Context)
 )
 

@@ -1,9 +1,9 @@
-goHelix: Golang binding for Apache Helix
+gohelix: Golang binding for Apache Helix
 -----
 
 This is an experimental helix client for Golang. It is under active development and not yet ready for production.
 
-# Start a Helix spectator
+# Helix Spectator
 
 ```go
 
@@ -57,9 +57,7 @@ This is an experimental helix client for Golang. It is under active development 
 ```
 
 
-The `Spectator` instance also provide 
-
-# Start a participant
+# Helix Participant
 
 ```go
     manager := gohelix.NewHelixManager(zk)
@@ -90,7 +88,7 @@ The `Spectator` instance also provide
 ```
 
 
-# Command-line too `helix`
+# Command-line tool `helix`
 
 To install the command-line tool:
 

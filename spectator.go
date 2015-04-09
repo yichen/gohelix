@@ -28,6 +28,7 @@ type Spectator struct {
 	currentStateChangeListeners   map[string][]CurrentStateChangeListener
 	idealStateChangeListeners     []IdealStateChangeListener
 	instanceConfigChangeListeners []InstanceConfigChangeListener
+	controllerMessageListeners    []ControllerMessageListener
 	messageListener               MessageListener
 
 	// stop the spectator
@@ -47,11 +48,12 @@ type Spectator struct {
 	// a change, we will retrieve the current snapshot of the external view and invoke the listener
 	// the value in the channel is the current externalview node that has been updated. If the value
 	// is empty string "", it means the root is changed.
-	externalViewChanged   chan string
-	liveInstanceChanged   chan string
-	currentStateChanged   chan string
-	idealStateChanged     chan string
-	instanceConfigChanged chan string
+	externalViewChanged       chan string
+	liveInstanceChanged       chan string
+	currentStateChanged       chan string
+	idealStateChanged         chan string
+	instanceConfigChanged     chan string
+	controllerMessagesChanged chan string
 
 	// context of the specator, accessible from the ExternalViewChangeListener
 	context *Context
@@ -122,6 +124,10 @@ func (s *Spectator) AddInstanceConfigChangeListener(listener InstanceConfigChang
 	s.instanceConfigChangeListeners = append(s.instanceConfigChangeListeners, listener)
 }
 
+func (s *Spectator) AddControllerMessageListener(listener ControllerMessageListener) {
+	s.controllerMessageListeners = append(s.controllerMessageListeners, listener)
+}
+
 func (s *Spectator) watchExternalViewResource(resource string) {
 	go func() {
 		for {
@@ -148,6 +154,24 @@ func (s *Spectator) watchIdealStateResource(resource string) {
 			must(err)
 		}
 	}()
+}
+
+func (s *Spectator) GetControllerMessages() []*Record {
+	result := []*Record{}
+	messages, err := s.conn.Children(s.keys.controllerMessages())
+
+	if err != nil {
+		return result
+	}
+
+	for _, m := range messages {
+		record, err := s.conn.GetRecordFromPath(s.keys.controllerMessage(m))
+		if err != nil {
+			result = append(result, record)
+		}
+	}
+
+	return result
 }
 
 func (s *Spectator) GetLiveInstances() []*Record {
@@ -437,6 +461,23 @@ func (s *Spectator) watchExternalView() {
 	}()
 }
 
+// watchControllerMessages only watch the changes of message list, it currently
+// doesn't watch the content of the messages.
+func (s *Spectator) watchControllerMessages() {
+	go func() {
+		_, events, err := s.conn.ChildrenW(s.keys.controllerMessages())
+		if err != nil {
+			panic(err)
+		}
+
+		// send the INIT update
+		s.controllerMessagesChanged <- ""
+
+		// block to wait for CALLBACK
+		<-events
+	}()
+}
+
 // loop is the main event loop for Spectator. Whenever an external view update happpened
 // the loop will pause for a short period of time to bucket all subsequent external view
 // changes so that we don't send duplicate updates too often.
@@ -462,6 +503,11 @@ func (s *Spectator) loop() {
 	if len(s.idealStateChangeListeners) > 0 {
 		hasListeners = true
 		s.watchIdealState()
+	}
+
+	if len(s.controllerMessageListeners) > 0 {
+		hasListeners = true
+		s.watchControllerMessages()
 	}
 
 	if !hasListeners {
@@ -512,6 +558,13 @@ func (s *Spectator) loop() {
 				ic := s.GetInstanceConfigs()
 				for _, icListener := range s.instanceConfigChangeListeners {
 					go icListener(ic, s.context)
+				}
+				continue
+
+			case <-s.controllerMessagesChanged:
+				cm := s.GetControllerMessages()
+				for _, cmListener := range s.controllerMessageListeners {
+					go cmListener(cm, s.context)
 				}
 			}
 		}
