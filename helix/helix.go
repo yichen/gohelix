@@ -11,8 +11,8 @@ import (
 	"strings"
 	"syscall"
 
-	"bitbucket.org/yichen/gohelix"
 	"github.com/codegangsta/cli"
+	"github.com/yichen/gohelix"
 )
 
 func main() {
