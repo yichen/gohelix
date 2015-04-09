@@ -1,0 +1,18 @@
+{
+	"folders":
+	[
+		{
+			"file_exclude_patterns":
+			[
+				"goHelix.sublime-*",
+				"*.html"
+			],
+			"folder_exclude_patterns":
+			[
+				".vagrant"
+			],
+			"follow_symlinks": true,
+			"path": "."
+		}
+	]
+}

@@ -1,0 +1,131 @@
+package gohelix
+
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"strconv"
+	"strings"
+)
+
+// Record represents a znode construct for Helix
+type Record struct {
+	ID           string                       `json:"id"`
+	SimpleFields map[string]interface{}       `json:"simpleFields"`
+	ListFields   map[string]interface{}       `json:"listFields"`
+	MapFields    map[string]map[string]string `json:"mapFields"`
+}
+
+// NewRecord creates a new instance of Record instance
+func NewRecord(id string) *Record {
+	return &Record{
+		ID:           id,
+		SimpleFields: map[string]interface{}{},
+		ListFields:   map[string]interface{}{},
+		MapFields:    map[string]map[string]string{},
+	}
+}
+
+func (r Record) Marshal() ([]byte, error) {
+	return json.MarshalIndent(r, "", "    ")
+}
+
+func (r Record) String() string {
+	s, _ := r.Marshal()
+	return string(s)
+}
+
+func (r Record) GetSimpleField(key string) interface{} {
+	if r.SimpleFields == nil {
+		return nil
+	}
+
+	return r.SimpleFields[key]
+}
+
+func (r Record) GetIntField(key string, defaultValue int) int {
+	value := r.GetSimpleField(key)
+	if value == nil {
+		return defaultValue
+	}
+
+	intVal, err := strconv.Atoi(value.(string))
+	if err != nil {
+		return defaultValue
+	} else {
+		return intVal
+	}
+}
+
+func (r *Record) SetIntField(key string, value int) {
+	r.SetSimpleField(key, strconv.Itoa(value))
+}
+
+func (r Record) GetBooleanField(key string, defaultValue bool) bool {
+	result := r.GetSimpleField(key)
+	if result == nil {
+		return defaultValue
+	}
+
+	return strings.ToLower(result.(string)) == "true"
+}
+
+func (r *Record) SetBooleanField(key string, value bool) {
+	r.SetSimpleField(key, strconv.FormatBool(value))
+}
+
+func (r *Record) SetSimpleField(key string, value interface{}) {
+	if r.SimpleFields == nil {
+		r.SimpleFields = make(map[string]interface{})
+	}
+	r.SimpleFields[key] = value
+}
+
+func (r *Record) SetMapField(key string, property string, value string) {
+	if r.MapFields == nil {
+		r.MapFields = make(map[string]map[string]string)
+	}
+
+	if r.MapFields[key] == nil {
+		r.MapFields[key] = make(map[string]string)
+	}
+
+	r.MapFields[key][property] = value
+}
+
+func (r *Record) RemoveMapField(key string) {
+	if r.MapFields == nil || r.MapFields[key] == nil {
+		return
+	}
+
+	delete(r.MapFields, key)
+}
+
+func (r Record) GetMapField(key string, property string) string {
+	if r.MapFields == nil || r.MapFields[key] == nil || r.MapFields[key][property] == "" {
+		return ""
+	}
+
+	return r.MapFields[key][property]
+}
+
+// NewRecordFromBytes creates a new znode instance from a byte array
+func NewRecordFromBytes(data []byte) (*Record, error) {
+	var zn Record
+	err := json.Unmarshal(data, &zn)
+	return &zn, err
+}
+
+func NewLiveInstanceNode(participantID string, sessionID string) *Record {
+	hostname, err := os.Hostname()
+	if err != nil {
+		panic(err)
+	}
+
+	node := NewRecord(participantID)
+	node.SetSimpleField("HELIX_VERSION", "gohelix-0.4")
+	node.SetSimpleField("SESSION_ID", sessionID)
+	node.SetSimpleField("LIVE_INSTANCE", fmt.Sprintf("%d@%s", os.Getpid(), hostname))
+
+	return node
+}
