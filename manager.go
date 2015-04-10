@@ -1,6 +1,9 @@
 package gohelix
 
-import "fmt"
+import (
+	"fmt"
+	"sync"
+)
 
 type HelixManager struct {
 	zkAddress string
@@ -41,6 +44,10 @@ func (m *HelixManager) NewSpectator(clusterID string) *Spectator {
 		currentStateChanged:     make(chan string, 100),
 		idealStateChanged:       make(chan string, 100),
 		instanceConfigChanged:   make(chan string, 100),
+
+		stopCurrentStateWatch: make(map[string]chan interface{}),
+
+		currentStateChangeListenersLock: sync.Mutex{},
 	}
 }
 
@@ -56,26 +63,4 @@ func (m *HelixManager) NewParticipant(clusterID string, host string, port string
 		stopWatch:     make(chan bool),
 		keys:          KeyBuilder{clusterID},
 	}
-}
-
-func (m *HelixManager) AddLiveInstanceChangeListener(clusterID string, listener LiveInstanceChangeListener) {
-	if m.conn == nil {
-		m.conn = NewConnection(m.zkAddress)
-	}
-
-	kb := KeyBuilder{clusterID}
-
-	kb.liveInstances()
-}
-
-func (m *HelixManager) AddCurrentStateChangeListener(clusterID string, instance string, sessionID string, listener CurrentStateChangeListener) {
-
-}
-
-func (m *HelixManager) AddIdealStateChangeListener(clusterID string, listener IdealStateChangeListener) {
-
-}
-
-func (m *HelixManager) AddMessageListener(instance string, listener MessageListener) {
-
 }

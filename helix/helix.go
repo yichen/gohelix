@@ -320,6 +320,35 @@ func main() {
 				startHelixSpectator(c.GlobalString("zkSvr"), cluster)
 			},
 		},
+		{
+			Name:  "trace",
+			Usage: "helix -z <zk>? trace -c <cluster>",
+			Flags: []cli.Flag{
+				cli.StringFlag{
+					Name:  "cluster, c",
+					Usage: "cluster name",
+				},
+				cli.BoolFlag{
+					Name:  "verbose, v",
+					Usage: "verbose output",
+				},
+				cli.BoolFlag{
+					Name:  "veryverbose, vv",
+					Usage: "very verbose output",
+				},
+			},
+			Action: func(c *cli.Context) {
+				cluster := c.String("cluster")
+				verboseLevel := 0
+				if c.Bool("v") {
+					verboseLevel = 1
+				}
+				if c.Bool("vv") {
+					verboseLevel = 2
+				}
+				startHelixTrace(c.GlobalString("zkSvr"), cluster, verboseLevel)
+			},
+		},
 	}
 
 	app.Run(os.Args)
@@ -330,6 +359,10 @@ func mustArgc(c *cli.Context, n int) error {
 		return fmt.Errorf("Wrong number of arguments")
 	}
 	return nil
+}
+
+func startHelixTrace(zk string, cluster string, verboseLevel int) {
+	trace(zk, cluster, verboseLevel)
 }
 
 // ./start-helix-participant.sh --zkSvr localhost:2199 --cluster MYCLUSTER --host localhost --port 12913 --stateModelType MasterSlave

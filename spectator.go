@@ -2,6 +2,7 @@ package gohelix
 
 import (
 	"fmt"
+	"sync"
 	"time"
 )
 
@@ -31,6 +32,9 @@ type Spectator struct {
 	controllerMessageListeners    []ControllerMessageListener
 	messageListener               MessageListener
 
+	// locks for modifying the internal data structures
+	currentStateChangeListenersLock sync.Mutex
+
 	// stop the spectator
 	stop chan bool
 
@@ -55,6 +59,9 @@ type Spectator struct {
 	instanceConfigChanged     chan string
 	controllerMessagesChanged chan string
 
+	// control channels for stopping watches
+	stopCurrentStateWatch map[string]chan interface{}
+
 	// context of the specator, accessible from the ExternalViewChangeListener
 	context *Context
 
@@ -75,6 +82,7 @@ func (s *Spectator) Connect() error {
 	// enter the main event loop
 	s.loop()
 
+	s.state = SpectatorConnected
 	return nil
 }
 
@@ -96,6 +104,10 @@ func (s *Spectator) Disconnect() {
 	s.state = SpectatorDisConnected
 }
 
+func (s *Spectator) IsConnected() bool {
+	return s.state == SpectatorConnected
+}
+
 func (s *Spectator) SetContext(context *Context) {
 	s.context = context
 }
@@ -109,11 +121,19 @@ func (s *Spectator) AddLiveInstanceChangeListener(listener LiveInstanceChangeLis
 }
 
 func (s *Spectator) AddCurrentStateChangeListener(instance string, listener CurrentStateChangeListener) {
+	s.currentStateChangeListenersLock.Lock()
 	if s.currentStateChangeListeners[instance] == nil {
 		s.currentStateChangeListeners[instance] = []CurrentStateChangeListener{}
 	}
 
 	s.currentStateChangeListeners[instance] = append(s.currentStateChangeListeners[instance], listener)
+	s.currentStateChangeListenersLock.Unlock()
+
+	// if we are adding new listeners when the specator is already connected, we need
+	// to kick of the listener in the event loop
+	if len(s.currentStateChangeListeners[instance]) == 1 && s.IsConnected() {
+		s.watchCurrentStateForInstance(instance)
+	}
 }
 
 func (s *Spectator) AddIdealStateChangeListener(listener IdealStateChangeListener) {
@@ -286,12 +306,36 @@ func (s *Spectator) watchCurrentStateForInstance(instance string) {
 }
 
 func (s *Spectator) watchCurrentStateOfInstanceForResource(instance string, resource string, sessionID string) {
+
+	watchPath := s.keys.currentStateForResource(instance, sessionID, resource)
+	if _, ok := s.stopCurrentStateWatch[watchPath]; !ok {
+		s.stopCurrentStateWatch[watchPath] = make(chan interface{})
+	}
+
+	// check if the session are ever expired. If so, remove the watcher
+	go func() {
+
+		c := time.Tick(10 * time.Second)
+		for now := range c {
+			if ok, err := s.conn.Exists(watchPath); !ok || err != nil {
+				s.stopCurrentStateWatch[watchPath] <- now
+				return
+			}
+		}
+	}()
+
 	go func() {
 		for {
-			_, events, err := s.conn.GetW(s.keys.currentStateForResource(instance, sessionID, resource))
+			_, events, err := s.conn.GetW(watchPath)
 			must(err)
-			<-events
-			s.currentStateChanged <- instance
+			select {
+			case <-events:
+				s.currentStateChanged <- instance
+				continue
+			case <-s.stopCurrentStateWatch[watchPath]:
+				delete(s.stopCurrentStateWatch, watchPath)
+				return
+			}
 		}
 	}()
 }
@@ -307,15 +351,15 @@ func (s *Spectator) watchLiveInstances() {
 				return
 			}
 
+			// notify the live instance update
+			s.liveInstanceChanged <- ""
+
 			// block the loop to wait for the live instance change
 			evt := <-events
 			if evt.Err != nil {
 				errors <- evt.Err
 				return
 			}
-
-			// notify the live instance update
-			s.liveInstanceChanged <- ""
 		}
 	}()
 }
