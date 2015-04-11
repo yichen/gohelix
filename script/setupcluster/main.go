@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 
-	"bitbucket.org/yichen/gohelix"
+	"github.com/yichen/gohelix"
 )
 
 func main() {
