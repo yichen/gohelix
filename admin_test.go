@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	testZkSvr string = "localhost:2181"
+	testZkSvr = "localhost:2181"
 )
 
 func TestAddAndDropCluster(t *testing.T) {

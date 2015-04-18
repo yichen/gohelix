@@ -1,13 +1,14 @@
 package main
 
 import (
-	"log"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
 
 	"github.com/yichen/gohelix"
+
+	log "github.com/Sirupsen/logrus"
 )
 
 var (
@@ -16,6 +17,14 @@ var (
 	manager           *gohelix.HelixManager
 	tracer            *gohelix.Spectator
 )
+
+func init() {
+	// Output to stderr instead of stdout, could also be a file.
+	log.SetOutput(os.Stdout)
+
+	// Only log the warning severity or above.
+	log.SetLevel(log.InfoLevel)
+}
 
 func trace(zk string, cluster string, verboseLevel int) {
 	manager = gohelix.NewHelixManager(zk)
@@ -80,7 +89,7 @@ func externalViewChangeListener(ev []*gohelix.Record, context *gohelix.Context) 
 
 	switch verboseLevel {
 	case 0:
-		log.Printf("[onExternalViewChange] number of resource groups: %d\n", len(ev))
+		log.WithField("CALLBACK", "onExternalViewChange").Infof("number of resource groups: %d", len(ev))
 	}
 }
 
@@ -90,7 +99,7 @@ func idealStateChangeListener(is []*gohelix.Record, context *gohelix.Context) {
 
 	switch verboseLevel {
 	case 0:
-		log.Printf("[onIdealStateChange] number of resource groups: %d\n", len(is))
+		log.WithField("CALLBACK", "onIdealStateChange").Infof("number of resource groups: %d", len(is))
 	}
 }
 
@@ -99,7 +108,7 @@ func currentStateChangeListener(instance string, currentState []*gohelix.Record,
 
 	switch verboseLevel {
 	case 0:
-		log.Printf("[onStateChange] instance:%s\n", instance)
+		log.WithField("CALLBACK", "onStateChange").Infof("instance:%s", instance)
 	}
 }
 
@@ -121,6 +130,6 @@ func liveInstanceChangeListener(liveInstances []*gohelix.Record, context *goheli
 
 	switch verboseLevel {
 	case 0:
-		log.Printf("[onLiveInstancesChange] number of live instances is %d. OFFLINE -> ONLINE: %d, ONLINE -> OFFLINE: %d\n", len(liveInstances), len(added), len(removed))
+		log.WithField("CALLBACK", "onLiveInstancesChange").Infof("number of live instances is %d. OFFLINE -> ONLINE: %d, ONLINE -> OFFLINE: %d", len(liveInstances), len(added), len(removed))
 	}
 }

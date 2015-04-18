@@ -8,20 +8,39 @@ import (
 )
 
 var (
-	ErrClusterNotSetup       = errors.New("cluster not setup")
-	ErrNodeAlreadyExists     = errors.New("node already exists in cluster")
-	ErrNodeNotExist          = errors.New("node does not exist in config for cluster")
-	ErrInstanceNotExist      = errors.New("node does not exist in instances for cluster")
+	// ErrClusterNotSetup means the helix data structure in zookeeper /{CLUSTER_NAME}
+	// is not correct or does not exist
+	ErrClusterNotSetup = errors.New("cluster not setup")
+
+	// ErrNodeAlreadyExists the zookeeper node exists when it is not expected to
+	ErrNodeAlreadyExists = errors.New("node already exists in cluster")
+
+	// ErrNodeNotExist the zookeeper node does not exist when it is expected to
+	ErrNodeNotExist = errors.New("node does not exist in config for cluster")
+
+	// ErrInstanceNotExist the instance of a cluster does not exist when it is expected to
+	ErrInstanceNotExist = errors.New("node does not exist in instances for cluster")
+
+	// ErrStateModelDefNotExist the state model definition is expected to exist in zookeeper
 	ErrStateModelDefNotExist = errors.New("state model not exist in cluster")
-	ErrResourceExists        = errors.New("resource already exists in cluster")
-	ErrResourceNotExists     = errors.New("resource not exists in cluster")
+
+	// ErrResourceExists the resource already exists in cluster and cannot be added again
+	ErrResourceExists = errors.New("resource already exists in cluster")
+
+	// ErrResourceNotExists the resource does not exists and cannot be removed
+	ErrResourceNotExists = errors.New("resource not exists in cluster")
 )
 
-// see http://helix.apache.org/0.7.0-incubating-docs/Quickstart.html
+// Admin handles the administration task for the Helix cluster. Many of the operations
+// are mirroring the implementions documented at
+// http://helix.apache.org/0.7.0-incubating-docs/Quickstart.html
 type Admin struct {
 	ZkSvr string
 }
 
+// AddCluster add a cluster to Helix. As a result, a znode will be created in zookeeper
+// root named after the cluster name, and corresponding data structures are populated
+// under this znode.
 func (adm Admin) AddCluster(cluster string) bool {
 	conn := NewConnection(adm.ZkSvr)
 	err := conn.Connect()
@@ -94,6 +113,7 @@ func (adm Admin) AddCluster(cluster string) bool {
 	return true
 }
 
+// SetConfig set the configuration values for the cluster, defined by the config scope
 func (adm Admin) SetConfig(cluster string, scope string, properties map[string]string) error {
 	conn := NewConnection(adm.ZkSvr)
 	err := conn.Connect()
@@ -121,6 +141,7 @@ func (adm Admin) SetConfig(cluster string, scope string, properties map[string]s
 	return nil
 }
 
+// GetConfig obtains the configuration value of a property, defined by a config scope
 func (adm Admin) GetConfig(cluster string, scope string, keys []string) map[string]interface{} {
 	conn := NewConnection(adm.ZkSvr)
 	err := conn.Connect()
@@ -148,6 +169,8 @@ func (adm Admin) GetConfig(cluster string, scope string, keys []string) map[stri
 	return result
 }
 
+// DropCluster removes a helix cluster from zookeeper. This will remove the
+// znode named after the cluster name from the zookeeper root.
 func (adm Admin) DropCluster(cluster string) error {
 	conn := NewConnection(adm.ZkSvr)
 	err := conn.Connect()
@@ -202,6 +225,8 @@ func (adm Admin) AddNode(cluster string, node string) error {
 	return nil
 }
 
+// DropNode removes a node from a cluster. The corresponding znodes
+// in zookeeper will be removed.
 func (adm Admin) DropNode(cluster string, node string) error {
 	conn := NewConnection(adm.ZkSvr)
 	err := conn.Connect()
@@ -257,9 +282,8 @@ func (adm Admin) AddResource(cluster string, resource string, partitions int, st
 	if exists, err := conn.Exists(isPath); exists || err != nil {
 		if exists {
 			return ErrResourceExists
-		} else {
-			return err
 		}
+		return err
 	}
 
 	// create the idealstate for the resource
@@ -274,6 +298,7 @@ func (adm Admin) AddResource(cluster string, resource string, partitions int, st
 	return nil
 }
 
+// DropResource removes the specified resource from the cluster.
 func (adm Admin) DropResource(cluster string, resource string) error {
 	conn := NewConnection(adm.ZkSvr)
 	err := conn.Connect()
@@ -296,6 +321,7 @@ func (adm Admin) DropResource(cluster string, resource string) error {
 	return nil
 }
 
+// EnableResource enables the specified resource in the cluster
 func (adm Admin) EnableResource(cluster string, resource string) error {
 	conn := NewConnection(adm.ZkSvr)
 	err := conn.Connect()
@@ -316,9 +342,8 @@ func (adm Admin) EnableResource(cluster string, resource string) error {
 	if exists, err := conn.Exists(isPath); !exists || err != nil {
 		if !exists {
 			return ErrResourceNotExists
-		} else {
-			return err
 		}
+		return err
 	}
 
 	// TODO: set the value at leaf node instead of the record level
@@ -326,6 +351,7 @@ func (adm Admin) EnableResource(cluster string, resource string) error {
 	return nil
 }
 
+// DisableResource disables the specified resource in the cluster.
 func (adm Admin) DisableResource(cluster string, resource string) error {
 	conn := NewConnection(adm.ZkSvr)
 	err := conn.Connect()
@@ -346,9 +372,9 @@ func (adm Admin) DisableResource(cluster string, resource string) error {
 	if exists, err := conn.Exists(isPath); !exists || err != nil {
 		if !exists {
 			return ErrResourceNotExists
-		} else {
-			return err
 		}
+
+		return err
 	}
 
 	conn.UpdateSimpleField(isPath, "HELIX_ENABLED", "false")
@@ -356,6 +382,7 @@ func (adm Admin) DisableResource(cluster string, resource string) error {
 	return nil
 }
 
+// Rebalance not implemented yet
 func (adm Admin) Rebalance(cluster string, resource string, replicationFactor int) {
 	conn := NewConnection(adm.ZkSvr)
 	err := conn.Connect()
@@ -410,6 +437,7 @@ func (adm Admin) ListClusterInfo(cluster string) (string, error) {
 	return buffer.String(), nil
 }
 
+// ListClusters shows all Helix managed clusters in the connected zookeeper cluster
 func (adm Admin) ListClusters() (string, error) {
 	conn := NewConnection(adm.ZkSvr)
 	err := conn.Connect()
@@ -441,6 +469,7 @@ func (adm Admin) ListClusters() (string, error) {
 	return buffer.String(), nil
 }
 
+// ListResources shows a list of resources managed by the helix cluster
 func (adm Admin) ListResources(cluster string) (string, error) {
 	conn := NewConnection(adm.ZkSvr)
 	err := conn.Connect()
@@ -471,6 +500,7 @@ func (adm Admin) ListResources(cluster string) (string, error) {
 	return buffer.String(), nil
 }
 
+// ListInstances shows a list of instances participating the cluster.
 func (adm Admin) ListInstances(cluster string) (string, error) {
 	conn := NewConnection(adm.ZkSvr)
 	err := conn.Connect()
@@ -501,6 +531,7 @@ func (adm Admin) ListInstances(cluster string) (string, error) {
 	return buffer.String(), nil
 }
 
+// ListInstanceInfo shows detailed information of an inspace in the helix cluster
 func (adm Admin) ListInstanceInfo(cluster string, instance string) (string, error) {
 	conn := NewConnection(adm.ZkSvr)
 	err := conn.Connect()
@@ -520,9 +551,8 @@ func (adm Admin) ListInstanceInfo(cluster string, instance string) (string, erro
 	if exists, err := conn.Exists(instanceCfg); !exists || err != nil {
 		if !exists {
 			return "", ErrNodeNotExist
-		} else {
-			return "", err
 		}
+		return "", err
 	}
 
 	r, err := conn.GetRecordFromPath(instanceCfg)
@@ -532,6 +562,7 @@ func (adm Admin) ListInstanceInfo(cluster string, instance string) (string, erro
 	return r.String(), nil
 }
 
+// GetInstances prints out lists of instances
 func (adm Admin) GetInstances(cluster string) {
 	conn := NewConnection(adm.ZkSvr)
 	err := conn.Connect()
@@ -552,6 +583,7 @@ func (adm Admin) GetInstances(cluster string) {
 
 }
 
+// DropInstance removes a participating instance from the helix cluster
 func (adm Admin) DropInstance(zkSvr string, cluster string, instance string) {
 	conn := NewConnection(adm.ZkSvr)
 	err := conn.Connect()
