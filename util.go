@@ -10,6 +10,7 @@ import (
 	"code.google.com/p/go.crypto/ssh"
 )
 
+// AddTestCluster calls helix-admin.sh --zkSvr localhost:2181 --addCluster 
 func AddTestCluster(cluster string) error {
 	cmd := "/opt/helix/bin/helix-admin.sh --zkSvr localhost:2181 --addCluster " + strings.TrimSpace(cluster)
 	if _, err := RunCommand(cmd); err != nil {
@@ -18,6 +19,7 @@ func AddTestCluster(cluster string) error {
 	return nil
 }
 
+// AddNode /opt/helix/bin/helix-admin.sh --zkSvr localhost:2181  --addNode 
 func AddNode(cluster string, host string, port string) error {
 
 	cmd := fmt.Sprintf("/opt/helix/bin/helix-admin.sh --zkSvr localhost:2181  --addNode %s %s:%s", cluster, host, port)
@@ -27,6 +29,7 @@ func AddNode(cluster string, host string, port string) error {
 	return nil
 }
 
+// AddResource /opt/helix/bin/helix-admin.sh --zkSvr localhost:2181 --addResource
 func AddResource(cluster string, resource string, replica string) error {
 	cmd := fmt.Sprintf("/opt/helix/bin/helix-admin.sh --zkSvr localhost:2181 --addResource %s %s %s MasterSlave", cluster, resource, replica)
 	if _, err := RunCommand(cmd); err != nil {
@@ -35,6 +38,7 @@ func AddResource(cluster string, resource string, replica string) error {
 	return nil
 }
 
+// Rebalance /opt/helix/bin/helix-admin.sh --zkSvr localhost:2181 --rebalance 
 func Rebalance(cluster string, resource string, replica string) error {
 	cmd := fmt.Sprintf("/opt/helix/bin/helix-admin.sh --zkSvr localhost:2181 --rebalance %s %s %s", cluster, resource, replica)
 	if _, err := RunCommand(cmd); err != nil {
@@ -43,6 +47,7 @@ func Rebalance(cluster string, resource string, replica string) error {
 	return nil
 }
 
+// DropTestCluster /opt/helix/bin/helix-admin.sh --zkSvr localhost:2181 --dropCluster
 func DropTestCluster(cluster string) error {
 	cmd := "/opt/helix/bin/helix-admin.sh --zkSvr localhost:2181 --dropCluster " + strings.TrimSpace(cluster)
 	if _, err := RunCommand(cmd); err != nil {
@@ -51,6 +56,7 @@ func DropTestCluster(cluster string) error {
 	return nil
 }
 
+// StartController sudo /usr/bin/supervisorctl start helixcontroller
 func StartController() error {
 	if _, err := RunCommand("sudo /usr/bin/supervisorctl start helixcontroller"); err != nil {
 		return err
@@ -58,6 +64,7 @@ func StartController() error {
 	return nil
 }
 
+// StopController sudo /usr/bin/supervisorctl stop helixcontroller
 func StopController() error {
 	if _, err := RunCommand("sudo /usr/bin/supervisorctl stop helixcontroller"); err != nil {
 		return err
@@ -65,6 +72,7 @@ func StopController() error {
 	return nil
 }
 
+// StartParticipant /usr/bin/supervisorctl start participant_
 func StartParticipant(port string) error {
 	command := "/usr/bin/supervisorctl start participant_" + port
 	if _, err := RunCommand(command); err != nil {
@@ -74,6 +82,7 @@ func StartParticipant(port string) error {
 	return nil
 }
 
+// StopParticipant /usr/bin/supervisorctl stop participant_
 func StopParticipant(port string) error {
 	command := "/usr/bin/supervisorctl stop participant_" + port
 	if _, err := RunCommand(command); err != nil {
@@ -83,6 +92,7 @@ func StopParticipant(port string) error {
 	return nil
 }
 
+// RunCommand execute command via ssh
 func RunCommand(command string) (string, error) {
 	key, err := getKeyFile()
 	if err != nil {
