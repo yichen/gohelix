@@ -253,7 +253,7 @@ func TestEnableDisableResource(t *testing.T) {
 	kb := KeyBuilder{cluster}
 	path := kb.idealStates() + "/resource"
 
-	conn := NewConnection(testZkSvr)
+	conn := newConnection(testZkSvr)
 	err := conn.Connect()
 	if err != nil {
 		t.Error("Failed to connect to test zookeeper")

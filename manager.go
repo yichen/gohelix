@@ -8,7 +8,7 @@ import (
 // HelixManager manages the Helix client connections and roles
 type HelixManager struct {
 	zkAddress string
-	conn      *Connection
+	conn      *connection
 }
 
 type (

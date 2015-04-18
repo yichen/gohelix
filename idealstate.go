@@ -56,7 +56,7 @@ func (is *IdealState) SetReplicas(replicas int) {
 	is.record.SetSimpleField("REPLICAS", strconv.Itoa(replicas))
 }
 
-func (is *IdealState) Save(conn *Connection, cluster string) {
+func (is *IdealState) Save(conn *connection, cluster string) {
 	keys := KeyBuilder{cluster}
 	path := keys.idealStates() + "/" + is.record.ID
 	conn.CreateRecordWithPath(path, &is.record)

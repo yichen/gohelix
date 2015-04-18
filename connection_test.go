@@ -7,7 +7,7 @@ import (
 )
 
 func TestEnsurePath(t *testing.T) {
-	conn := NewConnection(testZkSvr)
+	conn := newConnection(testZkSvr)
 	err := conn.Connect()
 	if err != nil {
 		t.Error(err.Error())

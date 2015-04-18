@@ -29,7 +29,7 @@ var (
 // Participant is a Helix participant node
 type Participant struct {
 	// HelixManager
-	conn *Connection
+	conn *connection
 	// zookeeper connection string
 	zkConnStr string
 
@@ -101,7 +101,7 @@ func (p *Participant) Connect() error {
 	}
 
 	if !p.conn.IsConnected() {
-		p.conn = NewConnection(p.zkConnStr)
+		p.conn = newConnection(p.zkConnStr)
 		p.conn.Connect()
 	}
 

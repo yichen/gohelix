@@ -42,7 +42,7 @@ type Admin struct {
 // root named after the cluster name, and corresponding data structures are populated
 // under this znode.
 func (adm Admin) AddCluster(cluster string) bool {
-	conn := NewConnection(adm.ZkSvr)
+	conn := newConnection(adm.ZkSvr)
 	err := conn.Connect()
 	if err != nil {
 		return false
@@ -115,7 +115,7 @@ func (adm Admin) AddCluster(cluster string) bool {
 
 // SetConfig set the configuration values for the cluster, defined by the config scope
 func (adm Admin) SetConfig(cluster string, scope string, properties map[string]string) error {
-	conn := NewConnection(adm.ZkSvr)
+	conn := newConnection(adm.ZkSvr)
 	err := conn.Connect()
 	if err != nil {
 		return err
@@ -143,7 +143,7 @@ func (adm Admin) SetConfig(cluster string, scope string, properties map[string]s
 
 // GetConfig obtains the configuration value of a property, defined by a config scope
 func (adm Admin) GetConfig(cluster string, scope string, keys []string) map[string]interface{} {
-	conn := NewConnection(adm.ZkSvr)
+	conn := newConnection(adm.ZkSvr)
 	err := conn.Connect()
 	if err != nil {
 		return nil
@@ -172,7 +172,7 @@ func (adm Admin) GetConfig(cluster string, scope string, keys []string) map[stri
 // DropCluster removes a helix cluster from zookeeper. This will remove the
 // znode named after the cluster name from the zookeeper root.
 func (adm Admin) DropCluster(cluster string) error {
-	conn := NewConnection(adm.ZkSvr)
+	conn := newConnection(adm.ZkSvr)
 	err := conn.Connect()
 	if err != nil {
 		return err
@@ -189,7 +189,7 @@ func (adm Admin) DropCluster(cluster string) error {
 // ./helix-admin.sh --zkSvr <ZookeeperServerAddress> --addNode <clusterName instanceId>
 // node is in the form of host_port
 func (adm Admin) AddNode(cluster string, node string) error {
-	conn := NewConnection(adm.ZkSvr)
+	conn := newConnection(adm.ZkSvr)
 	err := conn.Connect()
 	if err != nil {
 		return err
@@ -228,7 +228,7 @@ func (adm Admin) AddNode(cluster string, node string) error {
 // DropNode removes a node from a cluster. The corresponding znodes
 // in zookeeper will be removed.
 func (adm Admin) DropNode(cluster string, node string) error {
-	conn := NewConnection(adm.ZkSvr)
+	conn := newConnection(adm.ZkSvr)
 	err := conn.Connect()
 	if err != nil {
 		return err
@@ -259,7 +259,7 @@ func (adm Admin) DropNode(cluster string, node string) error {
 // # helix-admin.sh --zkSvr <zk_address> --addResource <clustername> <resourceName> <numPartitions> <StateModelName>
 // ./helix-admin.sh --zkSvr localhost:2199 --addResource MYCLUSTER myDB 6 MasterSlave
 func (adm Admin) AddResource(cluster string, resource string, partitions int, stateModel string) error {
-	conn := NewConnection(adm.ZkSvr)
+	conn := newConnection(adm.ZkSvr)
 	err := conn.Connect()
 	if err != nil {
 		return err
@@ -300,7 +300,7 @@ func (adm Admin) AddResource(cluster string, resource string, partitions int, st
 
 // DropResource removes the specified resource from the cluster.
 func (adm Admin) DropResource(cluster string, resource string) error {
-	conn := NewConnection(adm.ZkSvr)
+	conn := newConnection(adm.ZkSvr)
 	err := conn.Connect()
 	if err != nil {
 		return err
@@ -323,7 +323,7 @@ func (adm Admin) DropResource(cluster string, resource string) error {
 
 // EnableResource enables the specified resource in the cluster
 func (adm Admin) EnableResource(cluster string, resource string) error {
-	conn := NewConnection(adm.ZkSvr)
+	conn := newConnection(adm.ZkSvr)
 	err := conn.Connect()
 	if err != nil {
 		return err
@@ -353,7 +353,7 @@ func (adm Admin) EnableResource(cluster string, resource string) error {
 
 // DisableResource disables the specified resource in the cluster.
 func (adm Admin) DisableResource(cluster string, resource string) error {
-	conn := NewConnection(adm.ZkSvr)
+	conn := newConnection(adm.ZkSvr)
 	err := conn.Connect()
 	if err != nil {
 		return err
@@ -384,7 +384,7 @@ func (adm Admin) DisableResource(cluster string, resource string) error {
 
 // Rebalance not implemented yet
 func (adm Admin) Rebalance(cluster string, resource string, replicationFactor int) {
-	conn := NewConnection(adm.ZkSvr)
+	conn := newConnection(adm.ZkSvr)
 	err := conn.Connect()
 	if err != nil {
 		fmt.Println("Failed to connect to zookeeper.")
@@ -397,7 +397,7 @@ func (adm Admin) Rebalance(cluster string, resource string, replicationFactor in
 
 // ListClusterInfo shows the existing resources and instances in the glaster
 func (adm Admin) ListClusterInfo(cluster string) (string, error) {
-	conn := NewConnection(adm.ZkSvr)
+	conn := newConnection(adm.ZkSvr)
 	err := conn.Connect()
 	if err != nil {
 		return "", err
@@ -439,7 +439,7 @@ func (adm Admin) ListClusterInfo(cluster string) (string, error) {
 
 // ListClusters shows all Helix managed clusters in the connected zookeeper cluster
 func (adm Admin) ListClusters() (string, error) {
-	conn := NewConnection(adm.ZkSvr)
+	conn := newConnection(adm.ZkSvr)
 	err := conn.Connect()
 	if err != nil {
 		fmt.Println("Failed to connect to zookeeper.")
@@ -471,7 +471,7 @@ func (adm Admin) ListClusters() (string, error) {
 
 // ListResources shows a list of resources managed by the helix cluster
 func (adm Admin) ListResources(cluster string) (string, error) {
-	conn := NewConnection(adm.ZkSvr)
+	conn := newConnection(adm.ZkSvr)
 	err := conn.Connect()
 	if err != nil {
 		return "", err
@@ -502,7 +502,7 @@ func (adm Admin) ListResources(cluster string) (string, error) {
 
 // ListInstances shows a list of instances participating the cluster.
 func (adm Admin) ListInstances(cluster string) (string, error) {
-	conn := NewConnection(adm.ZkSvr)
+	conn := newConnection(adm.ZkSvr)
 	err := conn.Connect()
 	if err != nil {
 		return "", err
@@ -533,7 +533,7 @@ func (adm Admin) ListInstances(cluster string) (string, error) {
 
 // ListInstanceInfo shows detailed information of an inspace in the helix cluster
 func (adm Admin) ListInstanceInfo(cluster string, instance string) (string, error) {
-	conn := NewConnection(adm.ZkSvr)
+	conn := newConnection(adm.ZkSvr)
 	err := conn.Connect()
 	if err != nil {
 		return "", err
@@ -564,7 +564,7 @@ func (adm Admin) ListInstanceInfo(cluster string, instance string) (string, erro
 
 // GetInstances prints out lists of instances
 func (adm Admin) GetInstances(cluster string) {
-	conn := NewConnection(adm.ZkSvr)
+	conn := newConnection(adm.ZkSvr)
 	err := conn.Connect()
 	if err != nil {
 		fmt.Println("Failed to connect to zookeeper.")
@@ -585,7 +585,7 @@ func (adm Admin) GetInstances(cluster string) {
 
 // DropInstance removes a participating instance from the helix cluster
 func (adm Admin) DropInstance(zkSvr string, cluster string, instance string) {
-	conn := NewConnection(adm.ZkSvr)
+	conn := newConnection(adm.ZkSvr)
 	err := conn.Connect()
 	if err != nil {
 		fmt.Println("Failed to connect to zookeeper.")

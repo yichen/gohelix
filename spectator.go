@@ -15,7 +15,7 @@ const (
 
 type Spectator struct {
 	// HelixManager
-	conn *Connection
+	conn *connection
 
 	// The cluster this spectator is specatating
 	ClusterID string
@@ -73,7 +73,7 @@ func (s *Spectator) Connect() error {
 		return nil
 	}
 
-	s.conn = NewConnection(s.zkConnStr)
+	s.conn = newConnection(s.zkConnStr)
 	s.conn.Connect()
 
 	if ok, err := s.conn.IsClusterSetup(s.ClusterID); !ok || err != nil {
