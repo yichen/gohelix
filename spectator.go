@@ -78,12 +78,15 @@ func (s *Spectator) Connect() error {
 	}
 
 	s.conn = newConnection(s.zkConnStr)
-	s.conn.Connect()
+	if err := s.conn.Connect(); err != nil {
+		return err
+	}
 
 	if ok, err := s.conn.IsClusterSetup(s.ClusterID); !ok || err != nil {
 		return ErrClusterNotSetup
 	}
-	// enter the main event loop
+
+	// start the event loop for spectator
 	s.loop()
 
 	s.state = spectatorConnected
@@ -571,6 +574,11 @@ func (s *Spectator) loop() {
 	if len(s.controllerMessageListeners) > 0 {
 		hasListeners = true
 		s.watchControllerMessages()
+	}
+
+	if len(s.instanceConfigChangeListeners) > 0 {
+		hasListeners = true
+		s.watchInstanceConfig()
 	}
 
 	if !hasListeners {

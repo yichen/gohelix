@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"os/signal"
 	"sync"
@@ -37,8 +38,13 @@ func trace(zk string, cluster string, verboseLevel int) {
 	tracer.AddExternalViewChangeListener(externalViewChangeListener)
 	tracer.AddLiveInstanceChangeListener(liveInstanceChangeListener)
 	tracer.AddIdealStateChangeListener(idealStateChangeListener)
+	tracer.AddControllerMessageListener(controllerMessagesListener)
+	tracer.AddInstanceConfigChangeListener(instanceConfigChangeListener)
 
-	tracer.Connect()
+	if err := tracer.Connect(); err != nil {
+		fmt.Println("Unable to connect to zookeeper: " + err.Error())
+		return
+	}
 	defer tracer.Disconnect()
 
 	c := make(chan os.Signal, 2)
@@ -47,11 +53,11 @@ func trace(zk string, cluster string, verboseLevel int) {
 }
 
 func getVerboseLevel(context *gohelix.Context) int {
-	if vl := context.Get("VerboseLevel"); vl == nil {
+	vl := context.Get("VerboseLevel")
+	if vl == nil {
 		return 0
-	} else {
-		return vl.(int)
 	}
+	return vl.(int)
 }
 
 func getMapFromRecords(records []*gohelix.Record) map[string]gohelix.Record {
@@ -68,13 +74,13 @@ func diffRecords(before map[string]gohelix.Record, after map[string]gohelix.Reco
 	added := []string{}
 	removed := []string{}
 
-	for k, _ := range before {
+	for k := range before {
 		if _, ok := after[k]; !ok {
 			removed = append(removed, k)
 		}
 	}
 
-	for k, _ := range after {
+	for k := range after {
 		if _, ok := before[k]; !ok {
 			added = append(added, k)
 		}
@@ -120,6 +126,7 @@ func liveInstanceChangeListener(liveInstances []*gohelix.Record, context *goheli
 
 	// for newlly added instances, start watching them for CurrentStateChange
 	for _, i := range added {
+		log.Printf("Add CurrentStateChangedListener for live instance: %s\n", i)
 		tracer.AddCurrentStateChangeListener(i, currentStateChangeListener)
 	}
 
@@ -131,5 +138,23 @@ func liveInstanceChangeListener(liveInstances []*gohelix.Record, context *goheli
 	switch verboseLevel {
 	case 0:
 		log.WithField("CALLBACK", "onLiveInstancesChange").Infof("number of live instances is %d. OFFLINE -> ONLINE: %d, ONLINE -> OFFLINE: %d", len(liveInstances), len(added), len(removed))
+	}
+}
+
+func controllerMessagesListener(messages []*gohelix.Record, context *gohelix.Context) {
+	verboseLevel := getVerboseLevel(context)
+
+	switch verboseLevel {
+	case 0:
+		log.WithField("CALLBACK", "onMessage").Infof("Number of controller messages is %d", len(messages))
+	}
+}
+
+func instanceConfigChangeListener(configs []*gohelix.Record, context *gohelix.Context) {
+	verboseLevel := getVerboseLevel(context)
+
+	switch verboseLevel {
+	case 0:
+		log.WithField("CALLBACK", "onInstanceConfigChange").Infof("Number of instances configs is %d", len(configs))
 	}
 }

@@ -40,7 +40,7 @@ func newConnection(zkSvr string) *connection {
 
 func (conn *connection) Connect() error {
 	zkServers := strings.Split(strings.TrimSpace(conn.zkSvr), ",")
-	zkConn, _, err := zk.Connect(zkServers, 1*time.Minute)
+	zkConn, _, err := zk.Connect(zkServers, 15*time.Second)
 	if err != nil {
 		return err
 	}
