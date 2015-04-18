@@ -6,13 +6,15 @@ import (
 	"time"
 )
 
-type SpectatorState uint8
+type spectatorState uint8
 
 const (
-	SpectatorConnected    SpectatorState = 0
-	SpectatorDisConnected SpectatorState = 1
+	spectatorConnected    spectatorState = 0
+	spectatorDisConnected spectatorState = 1
 )
 
+// Spectator is a Helix role that does not participate the cluster state transition
+// but only read cluster data, or listen to cluster updates
 type Spectator struct {
 	// HelixManager
 	conn *connection
@@ -65,9 +67,11 @@ type Spectator struct {
 	// context of the specator, accessible from the ExternalViewChangeListener
 	context *Context
 
-	state SpectatorState
+	state spectatorState
 }
 
+// Connect the spectator. When connected, the spectator is able to listen to Helix cluster
+// changes and handle listener updates.
 func (s *Spectator) Connect() error {
 	if s.conn != nil && s.conn.IsConnected() {
 		return nil
@@ -82,44 +86,50 @@ func (s *Spectator) Connect() error {
 	// enter the main event loop
 	s.loop()
 
-	s.state = SpectatorConnected
+	s.state = spectatorConnected
 	return nil
 }
 
+// Disconnect will disconnect the spectator from zookeeper, and also stop all listeners
 func (s *Spectator) Disconnect() {
-	if s.state == SpectatorDisConnected {
+	if s.state == spectatorDisConnected {
 		return
 	}
 
 	// wait for graceful shutdown of the external view listener
-	if s.state != SpectatorDisConnected {
+	if s.state != spectatorDisConnected {
 		s.stop <- true
 		close(s.stop)
 	}
 
-	for s.state != SpectatorDisConnected {
+	for s.state != spectatorDisConnected {
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	s.state = SpectatorDisConnected
+	s.state = spectatorDisConnected
 }
 
+// IsConnected test if the spectator is connected
 func (s *Spectator) IsConnected() bool {
-	return s.state == SpectatorConnected
+	return s.state == spectatorConnected
 }
 
+// SetContext set the context that can be used within the listeners
 func (s *Spectator) SetContext(context *Context) {
 	s.context = context
 }
 
+// AddExternalViewChangeListener add a listener to external view changes.
 func (s *Spectator) AddExternalViewChangeListener(listener ExternalViewChangeListener) {
 	s.externalViewListeners = append(s.externalViewListeners, listener)
 }
 
+// AddLiveInstanceChangeListener add a listener to live instance changes.
 func (s *Spectator) AddLiveInstanceChangeListener(listener LiveInstanceChangeListener) {
 	s.liveInstanceChangeListeners = append(s.liveInstanceChangeListeners, listener)
 }
 
+// AddCurrentStateChangeListener add a listener to current state changes of the specified instance.
 func (s *Spectator) AddCurrentStateChangeListener(instance string, listener CurrentStateChangeListener) {
 	s.currentStateChangeListenersLock.Lock()
 	if s.currentStateChangeListeners[instance] == nil {
@@ -136,14 +146,17 @@ func (s *Spectator) AddCurrentStateChangeListener(instance string, listener Curr
 	}
 }
 
+// AddIdealStateChangeListener add a listener to the cluster ideal state changes
 func (s *Spectator) AddIdealStateChangeListener(listener IdealStateChangeListener) {
 	s.idealStateChangeListeners = append(s.idealStateChangeListeners, listener)
 }
 
+// AddInstanceConfigChangeListener add a listener to instance config changes
 func (s *Spectator) AddInstanceConfigChangeListener(listener InstanceConfigChangeListener) {
 	s.instanceConfigChangeListeners = append(s.instanceConfigChangeListeners, listener)
 }
 
+// AddControllerMessageListener add a listener to controller messages
 func (s *Spectator) AddControllerMessageListener(listener ControllerMessageListener) {
 	s.controllerMessageListeners = append(s.controllerMessageListeners, listener)
 }
@@ -176,6 +189,7 @@ func (s *Spectator) watchIdealStateResource(resource string) {
 	}()
 }
 
+// GetControllerMessages retrieves controller messages from zookeeper
 func (s *Spectator) GetControllerMessages() []*Record {
 	result := []*Record{}
 	messages, err := s.conn.Children(s.keys.controllerMessages())
@@ -194,6 +208,7 @@ func (s *Spectator) GetControllerMessages() []*Record {
 	return result
 }
 
+// GetLiveInstances retrieve a copy of the current live instances.
 func (s *Spectator) GetLiveInstances() []*Record {
 	liveInstances := []*Record{}
 	instances, err := s.conn.Children(s.keys.liveInstances())
@@ -215,6 +230,7 @@ func (s *Spectator) GetLiveInstances() []*Record {
 	return liveInstances
 }
 
+// GetExternalView retrieves a copy of the external views
 func (s *Spectator) GetExternalView() []*Record {
 	result := []*Record{}
 
@@ -234,6 +250,7 @@ func (s *Spectator) GetExternalView() []*Record {
 	return result
 }
 
+// GetIdealState retrieves a copy of the ideal state
 func (s *Spectator) GetIdealState() []*Record {
 	result := []*Record{}
 
@@ -252,6 +269,7 @@ func (s *Spectator) GetIdealState() []*Record {
 	return result
 }
 
+// GetCurrentState retrieves a copy of the current state for specified instance
 func (s *Spectator) GetCurrentState(instance string) []*Record {
 	result := []*Record{}
 
@@ -268,6 +286,7 @@ func (s *Spectator) GetCurrentState(instance string) []*Record {
 	return result
 }
 
+// GetInstanceConfigs retrieves a copy of instance configs from zookeeper
 func (s *Spectator) GetInstanceConfigs() []*Record {
 	result := []*Record{}
 
@@ -285,7 +304,7 @@ func (s *Spectator) GetInstanceConfigs() []*Record {
 }
 
 func (s *Spectator) watchCurrentStates() {
-	for k, _ := range s.currentStateChangeListeners {
+	for k := range s.currentStateChangeListeners {
 		s.watchCurrentStateForInstance(k)
 	}
 }
@@ -386,7 +405,7 @@ func (s *Spectator) watchInstanceConfig() {
 
 			// refresh the instanceConfigMap to make sure only the currently existing resources
 			// are marked as true
-			for k, _ := range s.instanceConfigMap {
+			for k := range s.instanceConfigMap {
 				s.instanceConfigMap[k] = false
 			}
 			for _, k := range configs {
@@ -443,7 +462,7 @@ func (s *Spectator) watchIdealState() {
 
 			// refresh the idealStateResourceMap to make sure only the currently existing resources
 			// are marked as true
-			for k, _ := range s.idealStateResourceMap {
+			for k := range s.idealStateResourceMap {
 				s.idealStateResourceMap[k] = false
 			}
 			for _, k := range resources {
@@ -485,7 +504,7 @@ func (s *Spectator) watchExternalView() {
 
 			// refresh the externalViewResourceMap to make sure only the currently existing resources
 			// are marked as true
-			for k, _ := range s.externalViewResourceMap {
+			for k := range s.externalViewResourceMap {
 				s.externalViewResourceMap[k] = false
 			}
 			for _, k := range resources {
@@ -562,7 +581,7 @@ func (s *Spectator) loop() {
 		for {
 			select {
 			case <-s.stop:
-				s.state = SpectatorDisConnected
+				s.state = spectatorDisConnected
 				return
 
 			case <-s.liveInstanceChanged:
