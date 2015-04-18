@@ -126,8 +126,10 @@ func liveInstanceChangeListener(liveInstances []*gohelix.Record, context *goheli
 
 	// for newlly added instances, start watching them for CurrentStateChange
 	for _, i := range added {
-		log.Printf("Add CurrentStateChangedListener for live instance: %s\n", i)
+		log.Printf("Add CurrentStateChangedListener for live instance: %s", i)
 		tracer.AddCurrentStateChangeListener(i, currentStateChangeListener)
+		log.Printf("Add MessageListener for live instance: %s", i)
+		tracer.AddMessageListener(i, instanceMessageListener)
 	}
 
 	// save a copy of the current live instances map
@@ -147,6 +149,15 @@ func controllerMessagesListener(messages []*gohelix.Record, context *gohelix.Con
 	switch verboseLevel {
 	case 0:
 		log.WithField("CALLBACK", "onMessage").Infof("Number of controller messages is %d", len(messages))
+	}
+}
+
+func instanceMessageListener(instance string, messages []*gohelix.Record, context *gohelix.Context) {
+	verboseLevel := getVerboseLevel(context)
+
+	switch verboseLevel {
+	case 0:
+		log.WithField("CALLBACK", "onMessage").Infof("Instance %s received new messages.", instance)
 	}
 }
 

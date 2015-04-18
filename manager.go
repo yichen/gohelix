@@ -45,17 +45,23 @@ func NewHelixManager(zkAddress string) *HelixManager {
 // operations of a Helix client.
 func (m *HelixManager) NewSpectator(clusterID string) *Spectator {
 	return &Spectator{
-		ClusterID:                   clusterID,
-		zkConnStr:                   m.zkAddress,
+		ClusterID: clusterID,
+		zkConnStr: m.zkAddress,
+		keys:      KeyBuilder{clusterID},
+
+		// listeners
 		externalViewListeners:       []ExternalViewChangeListener{},
 		liveInstanceChangeListeners: []LiveInstanceChangeListener{},
 		currentStateChangeListeners: map[string][]CurrentStateChangeListener{},
+		messageListeners:            map[string][]MessageListener{},
 		idealStateChangeListeners:   []IdealStateChangeListener{},
-		keys: KeyBuilder{clusterID},
+
+		// control channels
 		stop: make(chan bool),
-		externalViewResourceMap:   map[string]bool{},
-		idealStateResourceMap:     map[string]bool{},
-		instanceConfigMap:         map[string]bool{},
+		externalViewResourceMap: map[string]bool{},
+		idealStateResourceMap:   map[string]bool{},
+		instanceConfigMap:       map[string]bool{},
+
 		externalViewChanged:       make(chan string, 100),
 		liveInstanceChanged:       make(chan string, 100),
 		currentStateChanged:       make(chan string, 100),
@@ -64,6 +70,9 @@ func (m *HelixManager) NewSpectator(clusterID string) *Spectator {
 		controllerMessagesChanged: make(chan string, 100),
 
 		stopCurrentStateWatch: make(map[string]chan interface{}),
+
+		// channel for receiving instance messages
+		instanceMessageChannel: make(chan string, 100),
 
 		currentStateChangeListenersLock: sync.Mutex{},
 	}

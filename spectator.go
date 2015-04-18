@@ -32,7 +32,7 @@ type Spectator struct {
 	idealStateChangeListeners     []IdealStateChangeListener
 	instanceConfigChangeListeners []InstanceConfigChangeListener
 	controllerMessageListeners    []ControllerMessageListener
-	messageListener               MessageListener
+	messageListeners              map[string][]MessageListener
 
 	// locks for modifying the internal data structures
 	currentStateChangeListenersLock sync.Mutex
@@ -60,6 +60,9 @@ type Spectator struct {
 	idealStateChanged         chan string
 	instanceConfigChanged     chan string
 	controllerMessagesChanged chan string
+
+	// instance message channel. Each item in the channel is the instance name that has new messages
+	instanceMessageChannel chan string
 
 	// control channels for stopping watches
 	stopCurrentStateWatch map[string]chan interface{}
@@ -149,6 +152,21 @@ func (s *Spectator) AddCurrentStateChangeListener(instance string, listener Curr
 	}
 }
 
+func (s *Spectator) AddMessageListener(instance string, listener MessageListener) {
+	if _, ok := s.messageListeners[instance]; !ok {
+		s.messageListeners[instance] = []MessageListener{}
+	}
+
+	s.messageListeners[instance] = append(s.messageListeners[instance], listener)
+
+	// if the spectator is already connected and this is the first listener
+	// for the instance, we need to start watching the zookeeper path for
+	// upcoming messages
+	if len(s.messageListeners[instance]) == 1 && s.IsConnected() {
+		s.watchInstanceMessages(instance)
+	}
+}
+
 // AddIdealStateChangeListener add a listener to the cluster ideal state changes
 func (s *Spectator) AddIdealStateChangeListener(listener IdealStateChangeListener) {
 	s.idealStateChangeListeners = append(s.idealStateChangeListeners, listener)
@@ -203,6 +221,25 @@ func (s *Spectator) GetControllerMessages() []*Record {
 
 	for _, m := range messages {
 		record, err := s.conn.GetRecordFromPath(s.keys.controllerMessage(m))
+		if err != nil {
+			result = append(result, record)
+		}
+	}
+
+	return result
+}
+
+// GetInstanceMessages retrieves messages sent to an instance
+func (s *Spectator) GetInstanceMessages(instance string) []*Record {
+	result := []*Record{}
+	messages, err := s.conn.Children(s.keys.messages(instance))
+
+	if err != nil {
+		return result
+	}
+
+	for _, m := range messages {
+		record, err := s.conn.GetRecordFromPath(s.keys.message(instance, m))
 		if err != nil {
 			result = append(result, record)
 		}
@@ -544,6 +581,20 @@ func (s *Spectator) watchControllerMessages() {
 	}()
 }
 
+func (s *Spectator) watchInstanceMessages(instance string) {
+	go func() {
+		_, events, err := s.conn.ChildrenW(s.keys.messages(instance))
+		if err != nil {
+			panic(err)
+		}
+
+		s.instanceMessageChannel <- instance
+
+		// block and wait for next change
+		<-events
+	}()
+}
+
 // loop is the main event loop for Spectator. Whenever an external view update happpened
 // the loop will pause for a short period of time to bucket all subsequent external view
 // changes so that we don't send duplicate updates too often.
@@ -579,6 +630,14 @@ func (s *Spectator) loop() {
 	if len(s.instanceConfigChangeListeners) > 0 {
 		hasListeners = true
 		s.watchInstanceConfig()
+	}
+
+	if len(s.messageListeners) > 0 {
+		hasListeners = true
+
+		for instance := range s.messageListeners {
+			s.watchInstanceMessages(instance)
+		}
 	}
 
 	if !hasListeners {
@@ -636,6 +695,14 @@ func (s *Spectator) loop() {
 				cm := s.GetControllerMessages()
 				for _, cmListener := range s.controllerMessageListeners {
 					go cmListener(cm, s.context)
+				}
+				continue
+
+			case instance := <-s.instanceMessageChannel:
+				messageRecords := s.GetInstanceMessages(instance)
+
+				for _, ml := range s.messageListeners[instance] {
+					go ml(instance, messageRecords, s.context)
 				}
 			}
 		}
