@@ -1,6 +1,7 @@
 package gohelix
 
-var HelixDefaultNodes map[string]string = map[string]string{
+// HelixDefaultNodes
+var HelixDefaultNodes = map[string]string{
 	"LeaderStandby": `
 {
   "id" : "LeaderStandby",
