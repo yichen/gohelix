@@ -158,6 +158,15 @@ func instanceMessageListener(instance string, messages []*gohelix.Record, contex
 	switch verboseLevel {
 	case 0:
 		log.WithField("CALLBACK", "onMessage").Infof("Instance %s received new messages.", instance)
+		break
+	case 1:
+		msgStr := ""
+		for _, m := range messages {
+			msgStr += m.String()
+			msgStr += "\n"
+		}
+
+		log.WithField("CALLBACK", "onMessage").Infof("Instance %s received messages: %s", instance, msgStr)
 	}
 }
 
