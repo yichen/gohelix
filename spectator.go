@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"sync"
 	"time"
+
+	lru "github.com/hashicorp/golang-lru"
 )
 
 type spectatorState uint8
@@ -34,9 +36,6 @@ type Spectator struct {
 	controllerMessageListeners    []ControllerMessageListener
 	messageListeners              map[string][]MessageListener
 
-	// locks for modifying the internal data structures
-	currentStateChangeListenersLock sync.Mutex
-
 	// stop the spectator
 	stop chan bool
 
@@ -49,20 +48,14 @@ type Spectator struct {
 	idealStateResourceMap   map[string]bool
 	instanceConfigMap       map[string]bool
 
-	// channel to notify that external view has changes
-	// this include new resource added, resource removed, and resource changed. Whenever there is
-	// a change, we will retrieve the current snapshot of the external view and invoke the listener
-	// the value in the channel is the current externalview node that has been updated. If the value
-	// is empty string "", it means the root is changed.
-	externalViewChanged       chan string
-	liveInstanceChanged       chan string
-	currentStateChanged       chan string
-	idealStateChanged         chan string
-	instanceConfigChanged     chan string
-	controllerMessagesChanged chan string
+	// changeNotification is a channel to notify any changes that needs to trigger a listener
+	changeNotificationChan chan changeNotification
 
 	// instance message channel. Each item in the channel is the instance name that has new messages
 	instanceMessageChannel chan string
+
+	// a LRU cache of recently received message IDs. Use this to detect new messages and existing messages
+	receivedMessages *lru.Cache
 
 	// control channels for stopping watches
 	stopCurrentStateWatch map[string]chan interface{}
@@ -71,6 +64,8 @@ type Spectator struct {
 	context *Context
 
 	state spectatorState
+
+	sync.RWMutex
 }
 
 // Connect the spectator. When connected, the spectator is able to listen to Helix cluster
@@ -122,28 +117,38 @@ func (s *Spectator) IsConnected() bool {
 
 // SetContext set the context that can be used within the listeners
 func (s *Spectator) SetContext(context *Context) {
+	s.Lock()
+	defer s.Unlock()
+
 	s.context = context
 }
 
 // AddExternalViewChangeListener add a listener to external view changes.
 func (s *Spectator) AddExternalViewChangeListener(listener ExternalViewChangeListener) {
+	s.Lock()
+	defer s.Unlock()
+
 	s.externalViewListeners = append(s.externalViewListeners, listener)
 }
 
 // AddLiveInstanceChangeListener add a listener to live instance changes.
 func (s *Spectator) AddLiveInstanceChangeListener(listener LiveInstanceChangeListener) {
+	s.Lock()
+	defer s.Unlock()
+
 	s.liveInstanceChangeListeners = append(s.liveInstanceChangeListeners, listener)
 }
 
 // AddCurrentStateChangeListener add a listener to current state changes of the specified instance.
 func (s *Spectator) AddCurrentStateChangeListener(instance string, listener CurrentStateChangeListener) {
-	s.currentStateChangeListenersLock.Lock()
+	s.Lock()
+	defer s.Unlock()
+
 	if s.currentStateChangeListeners[instance] == nil {
 		s.currentStateChangeListeners[instance] = []CurrentStateChangeListener{}
 	}
 
 	s.currentStateChangeListeners[instance] = append(s.currentStateChangeListeners[instance], listener)
-	s.currentStateChangeListenersLock.Unlock()
 
 	// if we are adding new listeners when the specator is already connected, we need
 	// to kick of the listener in the event loop
@@ -153,6 +158,9 @@ func (s *Spectator) AddCurrentStateChangeListener(instance string, listener Curr
 }
 
 func (s *Spectator) AddMessageListener(instance string, listener MessageListener) {
+	s.Lock()
+	defer s.Unlock()
+
 	if _, ok := s.messageListeners[instance]; !ok {
 		s.messageListeners[instance] = []MessageListener{}
 	}
@@ -169,16 +177,25 @@ func (s *Spectator) AddMessageListener(instance string, listener MessageListener
 
 // AddIdealStateChangeListener add a listener to the cluster ideal state changes
 func (s *Spectator) AddIdealStateChangeListener(listener IdealStateChangeListener) {
+	s.Lock()
+	defer s.Unlock()
+
 	s.idealStateChangeListeners = append(s.idealStateChangeListeners, listener)
 }
 
 // AddInstanceConfigChangeListener add a listener to instance config changes
 func (s *Spectator) AddInstanceConfigChangeListener(listener InstanceConfigChangeListener) {
+	s.Lock()
+	defer s.Unlock()
+
 	s.instanceConfigChangeListeners = append(s.instanceConfigChangeListeners, listener)
 }
 
 // AddControllerMessageListener add a listener to controller messages
 func (s *Spectator) AddControllerMessageListener(listener ControllerMessageListener) {
+	s.Lock()
+	defer s.Unlock()
+
 	s.controllerMessageListeners = append(s.controllerMessageListeners, listener)
 }
 
@@ -190,7 +207,9 @@ func (s *Spectator) watchExternalViewResource(resource string) {
 			// to the channel
 			_, events, err := s.conn.GetW(s.keys.externalViewForResource(resource))
 			<-events
-			s.externalViewChanged <- resource
+			s.changeNotificationChan <- changeNotification{
+				exteralViewChanged, resource,
+			}
 			must(err)
 		}
 	}()
@@ -204,7 +223,7 @@ func (s *Spectator) watchIdealStateResource(resource string) {
 			// to the channel
 			_, events, err := s.conn.GetW(s.keys.idealStateForResource(resource))
 			<-events
-			s.idealStateChanged <- resource
+			s.changeNotificationChan <- changeNotification{idealStateChanged, resource}
 			must(err)
 		}
 	}()
@@ -365,6 +384,8 @@ func (s *Spectator) watchCurrentStateForInstance(instance string) {
 }
 
 func (s *Spectator) watchCurrentStateOfInstanceForResource(instance string, resource string, sessionID string) {
+	s.Lock()
+	defer s.Unlock()
 
 	watchPath := s.keys.currentStateForResource(instance, sessionID, resource)
 	if _, ok := s.stopCurrentStateWatch[watchPath]; !ok {
@@ -389,7 +410,7 @@ func (s *Spectator) watchCurrentStateOfInstanceForResource(instance string, reso
 			must(err)
 			select {
 			case <-events:
-				s.currentStateChanged <- instance
+				s.changeNotificationChan <- changeNotification{currentStateChanged, instance}
 				continue
 			case <-s.stopCurrentStateWatch[watchPath]:
 				delete(s.stopCurrentStateWatch, watchPath)
@@ -411,7 +432,7 @@ func (s *Spectator) watchLiveInstances() {
 			}
 
 			// notify the live instance update
-			s.liveInstanceChanged <- ""
+			s.changeNotificationChan <- changeNotification{liveInstanceChanged, nil}
 
 			// block the loop to wait for the live instance change
 			evt := <-events
@@ -453,7 +474,7 @@ func (s *Spectator) watchInstanceConfig() {
 			}
 
 			// Notify an update of external view if there are new resources added.
-			s.instanceConfigChanged <- ""
+			s.changeNotificationChan <- changeNotification{instanceConfigChanged, nil}
 
 			// now need to block the loop to wait for the next update event
 			evt := <-events
@@ -473,7 +494,7 @@ func (s *Spectator) watchInstanceConfigForParticipant(instance string) {
 			// to the channel
 			_, events, err := s.conn.GetW(s.keys.participantConfig(instance))
 			<-events
-			s.instanceConfigChanged <- instance
+			s.changeNotificationChan <- changeNotification{instanceConfigChanged, instance}
 			must(err)
 		}
 	}()
@@ -510,7 +531,7 @@ func (s *Spectator) watchIdealState() {
 			}
 
 			// Notify an update of external view if there are new resources added.
-			s.idealStateChanged <- ""
+			s.changeNotificationChan <- changeNotification{idealStateChanged, nil}
 
 			// now need to block the loop to wait for the next update event
 			evt := <-events
@@ -552,7 +573,7 @@ func (s *Spectator) watchExternalView() {
 			}
 
 			// Notify an update of external view if there are new resources added.
-			s.externalViewChanged <- ""
+			s.changeNotificationChan <- changeNotification{exteralViewChanged, ""}
 
 			// now need to block the loop to wait for the next update event
 			evt := <-events
@@ -574,7 +595,7 @@ func (s *Spectator) watchControllerMessages() {
 		}
 
 		// send the INIT update
-		s.controllerMessagesChanged <- ""
+		s.changeNotificationChan <- changeNotification{controllerMessagesChanged, nil}
 
 		// block to wait for CALLBACK
 		<-events
@@ -583,9 +604,13 @@ func (s *Spectator) watchControllerMessages() {
 
 func (s *Spectator) watchInstanceMessages(instance string) {
 	go func() {
-		_, events, err := s.conn.ChildrenW(s.keys.messages(instance))
+		messages, events, err := s.conn.ChildrenW(s.keys.messages(instance))
 		if err != nil {
 			panic(err)
+		}
+
+		for _, m := range messages {
+			s.receivedMessages.Add(m, nil)
 		}
 
 		s.instanceMessageChannel <- instance
@@ -595,53 +620,46 @@ func (s *Spectator) watchInstanceMessages(instance string) {
 	}()
 }
 
+// watchInstanceMessage will watch an individual message and trigger update
+// if the content of the message has changed.
+func (s *Spectator) watchInstanceMessage(instance string, messageID string) {
+	go func() {
+
+	}()
+}
+
 // loop is the main event loop for Spectator. Whenever an external view update happpened
 // the loop will pause for a short period of time to bucket all subsequent external view
 // changes so that we don't send duplicate updates too often.
 func (s *Spectator) loop() {
-
-	hasListeners := false
-
 	if len(s.externalViewListeners) > 0 {
-		hasListeners = true
 		s.watchExternalView()
 	}
 
 	if len(s.liveInstanceChangeListeners) > 0 {
-		hasListeners = true
 		s.watchLiveInstances()
 	}
 
 	if len(s.currentStateChangeListeners) > 0 {
-		hasListeners = true
 		s.watchCurrentStates()
 	}
 
 	if len(s.idealStateChangeListeners) > 0 {
-		hasListeners = true
 		s.watchIdealState()
 	}
 
 	if len(s.controllerMessageListeners) > 0 {
-		hasListeners = true
 		s.watchControllerMessages()
 	}
 
 	if len(s.instanceConfigChangeListeners) > 0 {
-		hasListeners = true
 		s.watchInstanceConfig()
 	}
 
 	if len(s.messageListeners) > 0 {
-		hasListeners = true
-
 		for instance := range s.messageListeners {
 			s.watchInstanceMessages(instance)
 		}
-	}
-
-	if !hasListeners {
-		return
 	}
 
 	go func() {
@@ -651,60 +669,66 @@ func (s *Spectator) loop() {
 				s.state = spectatorDisConnected
 				return
 
-			case <-s.liveInstanceChanged:
-				li := s.GetLiveInstances()
-				for _, l := range s.liveInstanceChangeListeners {
-					go l(li, s.context)
-				}
+			case chg := <-s.changeNotificationChan:
+				s.handleChangeNotification(chg)
 				continue
 
-			case r := <-s.externalViewChanged:
-				ev := s.GetExternalView()
-				if s.context != nil {
-					s.context.Set("trigger", r)
-				}
-
-				for _, evListener := range s.externalViewListeners {
-					go evListener(ev, s.context)
-				}
-				continue
-
-			case p := <-s.currentStateChanged:
-				cs := s.GetCurrentState(p)
-				for _, listener := range s.currentStateChangeListeners[p] {
-					go listener(p, cs, s.context)
-				}
-				continue
-
-			case <-s.idealStateChanged:
-				is := s.GetIdealState()
-
-				for _, isListener := range s.idealStateChangeListeners {
-					go isListener(is, s.context)
-				}
-				continue
-
-			case <-s.instanceConfigChanged:
-				ic := s.GetInstanceConfigs()
-				for _, icListener := range s.instanceConfigChangeListeners {
-					go icListener(ic, s.context)
-				}
-				continue
-
-			case <-s.controllerMessagesChanged:
-				cm := s.GetControllerMessages()
-				for _, cmListener := range s.controllerMessageListeners {
-					go cmListener(cm, s.context)
-				}
-				continue
-
-			case instance := <-s.instanceMessageChannel:
-				messageRecords := s.GetInstanceMessages(instance)
-
-				for _, ml := range s.messageListeners[instance] {
-					go ml(instance, messageRecords, s.context)
-				}
 			}
 		}
 	}()
+}
+
+func (s *Spectator) handleChangeNotification(chg changeNotification) {
+	switch chg.changeType {
+	case exteralViewChanged:
+		ev := s.GetExternalView()
+		if s.context != nil {
+			s.context.Set("trigger", chg.changeData.(string))
+		}
+
+		for _, evListener := range s.externalViewListeners {
+			go evListener(ev, s.context)
+		}
+
+	case liveInstanceChanged:
+		li := s.GetLiveInstances()
+		for _, l := range s.liveInstanceChangeListeners {
+			go l(li, s.context)
+		}
+
+	case idealStateChanged:
+		is := s.GetIdealState()
+
+		for _, isListener := range s.idealStateChangeListeners {
+			go isListener(is, s.context)
+		}
+
+	case currentStateChanged:
+		instance := chg.changeData.(string)
+		cs := s.GetCurrentState(instance)
+		for _, listener := range s.currentStateChangeListeners[instance] {
+			go listener(instance, cs, s.context)
+		}
+
+	case instanceConfigChanged:
+
+		ic := s.GetInstanceConfigs()
+		for _, icListener := range s.instanceConfigChangeListeners {
+			go icListener(ic, s.context)
+		}
+
+	case controllerMessagesChanged:
+		cm := s.GetControllerMessages()
+		for _, cmListener := range s.controllerMessageListeners {
+			go cmListener(cm, s.context)
+		}
+
+	case instanceMessagesChanged:
+		instance := chg.changeData.(string)
+		messageRecords := s.GetInstanceMessages(instance)
+
+		for _, ml := range s.messageListeners[instance] {
+			go ml(instance, messageRecords, s.context)
+		}
+	}
 }

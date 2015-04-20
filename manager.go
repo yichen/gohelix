@@ -1,15 +1,22 @@
 package gohelix
 
-import (
-	"fmt"
-	"sync"
-)
+import "fmt"
 
-// HelixManager manages the Helix client connections and roles
-type HelixManager struct {
-	zkAddress string
-	conn      *connection
+type changeNotificationType uint8
+type changeNotification struct {
+	changeType changeNotificationType
+	changeData interface{}
 }
+
+const (
+	exteralViewChanged        changeNotificationType = 0
+	liveInstanceChanged       changeNotificationType = 1
+	idealStateChanged         changeNotificationType = 2
+	currentStateChanged       changeNotificationType = 3
+	instanceConfigChanged     changeNotificationType = 4
+	controllerMessagesChanged changeNotificationType = 5
+	instanceMessagesChanged   changeNotificationType = 6
+)
 
 type (
 	// ExternalViewChangeListener is triggered when the external view is updated
@@ -33,6 +40,12 @@ type (
 	// MessageListener is triggered when the instance received new messages
 	MessageListener func(instance string, messages []*Record, context *Context)
 )
+
+// HelixManager manages the Helix client connections and roles
+type HelixManager struct {
+	zkAddress string
+	conn      *connection
+}
 
 // NewHelixManager creates a new instance of HelixManager from a zookeeper connection string
 func NewHelixManager(zkAddress string) *HelixManager {
@@ -62,19 +75,12 @@ func (m *HelixManager) NewSpectator(clusterID string) *Spectator {
 		idealStateResourceMap:   map[string]bool{},
 		instanceConfigMap:       map[string]bool{},
 
-		externalViewChanged:       make(chan string, 100),
-		liveInstanceChanged:       make(chan string, 100),
-		currentStateChanged:       make(chan string, 100),
-		idealStateChanged:         make(chan string, 100),
-		instanceConfigChanged:     make(chan string, 100),
-		controllerMessagesChanged: make(chan string, 100),
+		changeNotificationChan: make(chan changeNotification, 1000),
 
 		stopCurrentStateWatch: make(map[string]chan interface{}),
 
 		// channel for receiving instance messages
 		instanceMessageChannel: make(chan string, 100),
-
-		currentStateChangeListenersLock: sync.Mutex{},
 	}
 }
 
