@@ -34,7 +34,7 @@ func TestParticipantConnect(t *testing.T) {
 	}
 
 	// expect the connect to fail because the auto join is not allowed
-	if p.state == PSStarted {
+	if p.state == psStarted {
 		t.Error("Expect the participant to fail to connect")
 	}
 
@@ -51,7 +51,7 @@ func TestParticipantConnect(t *testing.T) {
 		t.Error(err)
 	}
 	defer p.Disconnect()
-	if p.state != PSStarted {
+	if p.state != psStarted {
 		t.Error("Participant is not connected and started")
 	}
 }
@@ -73,7 +73,7 @@ func TestPreConnectedCallback(t *testing.T) {
 	p.RegisterStateModel("dummy", sm1)
 
 	called := false
-	var cb PreConnectCallback = func() {
+	cb := func() {
 		called = true
 	}
 

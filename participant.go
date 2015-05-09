@@ -12,17 +12,18 @@ import (
 	"github.com/yichen/go-zookeeper/zk"
 )
 
-type ParticipantState uint8
-type PreConnectCallback func()
+type participantState uint8
 
 const (
-	PSConnected    ParticipantState = 0
-	PSStarted      ParticipantState = 1
-	PSStopped      ParticipantState = 2
-	PSDisconnected ParticipantState = 3
+	psConnected    participantState = 0
+	psStarted      participantState = 1
+	psStopped      participantState = 2
+	psDisconnected participantState = 3
 )
 
 var (
+	// ErrEnsureParticipantConfig is returned when participant configuration cannot be
+	// created in zookeeper
 	ErrEnsureParticipantConfig = errors.New("Participant configuration could not be added")
 )
 
@@ -56,13 +57,13 @@ type Participant struct {
 	stopWatch chan bool
 
 	// status
-	state ParticipantState
+	state participantState
 
 	// keybuilder
 	keys KeyBuilder
 
 	// pre-connect callbacks
-	preConnectCallbacks []PreConnectCallback
+	preConnectCallbacks []func()
 
 	sync.Mutex
 }
@@ -148,7 +149,7 @@ func (p *Participant) cleanUp() {
 // Disconnect the participant from Zookeeper and Helix controller
 func (p *Participant) Disconnect() {
 	// do i need lock here?
-	if p.state == PSDisconnected {
+	if p.state == psDisconnected {
 		return
 	}
 
@@ -157,10 +158,10 @@ func (p *Participant) Disconnect() {
 	// the stop message
 	// if the status is started, it means the event loop is running
 	// wait for it to stop
-	if p.state == PSStarted {
+	if p.state == psStarted {
 		p.stop <- true
 		close(p.stop)
-		for p.state != PSStopped {
+		for p.state != psStopped {
 			time.Sleep(100 * time.Millisecond)
 		}
 	}
@@ -169,7 +170,7 @@ func (p *Participant) Disconnect() {
 		p.conn.Disconnect()
 	}
 
-	p.state = PSDisconnected
+	p.state = psDisconnected
 }
 
 // RegisterStateModel associates state trasition functions with the participant
@@ -180,7 +181,8 @@ func (p *Participant) RegisterStateModel(name string, sm StateModel) {
 	p.stateModels[name] = &sm
 }
 
-func (p *Participant) AddPreConnectCallback(callback PreConnectCallback) {
+// AddPreConnectCallback adds a pre-connect callback
+func (p *Participant) AddPreConnectCallback(callback func()) {
 	p.preConnectCallbacks = append(p.preConnectCallbacks, callback)
 }
 
@@ -200,9 +202,8 @@ func (p *Participant) autoJoinAllowed() bool {
 	al := allowed.(string)
 	if strings.ToLower(al) == "true" {
 		return true
-	} else {
-		return false
 	}
+	return false
 }
 
 func (p *Participant) ensureParticipantConfig() bool {
@@ -461,9 +462,9 @@ func (p *Participant) loop() {
 	messagesChan, errChan := p.watchMessages()
 
 	go func() {
-		// PSStarted means the message loop is running, and
+		// psStarted means the message loop is running, and
 		// it can process p.stop message
-		p.state = PSStarted
+		p.state = psStarted
 
 		for {
 			select {
@@ -480,7 +481,7 @@ func (p *Participant) loop() {
 			case err := <-errChan:
 				fmt.Println(err.Error())
 			case <-p.stop:
-				p.state = PSStopped
+				p.state = psStopped
 				return
 			}
 		}

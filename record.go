@@ -26,15 +26,18 @@ func NewRecord(id string) *Record {
 	}
 }
 
+// Marshal generates the beautified json in byte array format
 func (r Record) Marshal() ([]byte, error) {
 	return json.MarshalIndent(r, "", "    ")
 }
 
+// String returns the beautified JSON string for the Record
 func (r Record) String() string {
 	s, _ := r.Marshal()
 	return string(s)
 }
 
+// GetSimpleField returns a value of a key in SimpleField structure
 func (r Record) GetSimpleField(key string) interface{} {
 	if r.SimpleFields == nil {
 		return nil
@@ -43,6 +46,7 @@ func (r Record) GetSimpleField(key string) interface{} {
 	return r.SimpleFields[key]
 }
 
+// GetIntField returns the integer value of a field in the SimpleField
 func (r Record) GetIntField(key string, defaultValue int) int {
 	value := r.GetSimpleField(key)
 	if value == nil {
@@ -52,15 +56,19 @@ func (r Record) GetIntField(key string, defaultValue int) int {
 	intVal, err := strconv.Atoi(value.(string))
 	if err != nil {
 		return defaultValue
-	} else {
-		return intVal
 	}
+	return intVal
 }
 
+// SetIntField sets the integer value of a key under SimpleField.
+// the value is stored as in string form
 func (r *Record) SetIntField(key string, value int) {
 	r.SetSimpleField(key, strconv.Itoa(value))
 }
 
+// GetBooleanField gets the value of a key under SimpleField and
+// convert the result to bool type. That is, if the value is "true",
+// the result is true.
 func (r Record) GetBooleanField(key string, defaultValue bool) bool {
 	result := r.GetSimpleField(key)
 	if result == nil {
@@ -70,10 +78,14 @@ func (r Record) GetBooleanField(key string, defaultValue bool) bool {
 	return strings.ToLower(result.(string)) == "true"
 }
 
+// SetBooleanField sets a key under SimpleField with a specified bool
+// value, serialized to string. For example, true will be stored as
+// "TRUE"
 func (r *Record) SetBooleanField(key string, value bool) {
 	r.SetSimpleField(key, strconv.FormatBool(value))
 }
 
+// SetSimpleField sets the value of a key under SimpleField
 func (r *Record) SetSimpleField(key string, value interface{}) {
 	if r.SimpleFields == nil {
 		r.SimpleFields = make(map[string]interface{})
@@ -81,6 +93,8 @@ func (r *Record) SetSimpleField(key string, value interface{}) {
 	r.SimpleFields[key] = value
 }
 
+// SetMapField sets the value of a key under MapField. Both key and
+// value are string format.
 func (r *Record) SetMapField(key string, property string, value string) {
 	if r.MapFields == nil {
 		r.MapFields = make(map[string]map[string]string)
@@ -93,6 +107,7 @@ func (r *Record) SetMapField(key string, property string, value string) {
 	r.MapFields[key][property] = value
 }
 
+// RemoveMapField deletes a key from MapField
 func (r *Record) RemoveMapField(key string) {
 	if r.MapFields == nil || r.MapFields[key] == nil {
 		return
@@ -101,6 +116,8 @@ func (r *Record) RemoveMapField(key string) {
 	delete(r.MapFields, key)
 }
 
+// GetMapField returns the string value of the property of a key
+// under MapField.
 func (r Record) GetMapField(key string, property string) string {
 	if r.MapFields == nil || r.MapFields[key] == nil || r.MapFields[key][property] == "" {
 		return ""
@@ -116,6 +133,8 @@ func NewRecordFromBytes(data []byte) (*Record, error) {
 	return &zn, err
 }
 
+// NewLiveInstanceNode creates a new instance of Record for representing
+// a live instance.
 func NewLiveInstanceNode(participantID string, sessionID string) *Record {
 	hostname, err := os.Hostname()
 	if err != nil {

@@ -157,6 +157,7 @@ func (s *Spectator) AddCurrentStateChangeListener(instance string, listener Curr
 	}
 }
 
+// AddMessageListener adds a listener to the messages of an instance
 func (s *Spectator) AddMessageListener(instance string, listener MessageListener) {
 	s.Lock()
 	defer s.Unlock()
@@ -207,9 +208,7 @@ func (s *Spectator) watchExternalViewResource(resource string) {
 			// to the channel
 			_, events, err := s.conn.GetW(s.keys.externalViewForResource(resource))
 			<-events
-			s.changeNotificationChan <- changeNotification{
-				exteralViewChanged, resource,
-			}
+			s.changeNotificationChan <- changeNotification{exteralViewChanged, resource}
 			must(err)
 		}
 	}()
@@ -460,18 +459,23 @@ func (s *Spectator) watchInstanceConfig() {
 				_, ok := s.instanceConfigMap[k]
 				if !ok {
 					s.watchInstanceConfigForParticipant(k)
+
+					s.Lock()
 					s.instanceConfigMap[k] = true
+					s.Unlock()
 				}
 			}
 
 			// refresh the instanceConfigMap to make sure only the currently existing resources
 			// are marked as true
+			s.Lock()
 			for k := range s.instanceConfigMap {
 				s.instanceConfigMap[k] = false
 			}
 			for _, k := range configs {
 				s.instanceConfigMap[k] = true
 			}
+			s.Unlock()
 
 			// Notify an update of external view if there are new resources added.
 			s.changeNotificationChan <- changeNotification{instanceConfigChanged, nil}
@@ -711,7 +715,6 @@ func (s *Spectator) handleChangeNotification(chg changeNotification) {
 		}
 
 	case instanceConfigChanged:
-
 		ic := s.GetInstanceConfigs()
 		for _, icListener := range s.instanceConfigChangeListeners {
 			go icListener(ic, s.context)
@@ -726,7 +729,6 @@ func (s *Spectator) handleChangeNotification(chg changeNotification) {
 	case instanceMessagesChanged:
 		instance := chg.changeData.(string)
 		messageRecords := s.GetInstanceMessages(instance)
-
 		for _, ml := range s.messageListeners[instance] {
 			go ml(instance, messageRecords, s.context)
 		}

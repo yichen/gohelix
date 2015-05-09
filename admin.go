@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -287,13 +288,20 @@ func (adm Admin) AddResource(cluster string, resource string, partitions int, st
 	}
 
 	// create the idealstate for the resource
-	is := NewIdealState(resource)
-	is.SetNumPartitions(partitions)
-	is.SetReplicas(0)
-	is.SetRebalanceMode("SEMI_AUTO")
-	is.SetStateModelDefRef(stateModel)
-	// save the ideal state in zookeeper
-	is.Save(conn, cluster)
+	// is := NewIdealState(resource)
+	// is.SetNumPartitions(partitions)
+	// is.SetReplicas(0)
+	// is.SetRebalanceMode("SEMI_AUTO")
+	// is.SetStateModelDefRef(stateModel)
+	// // save the ideal state in zookeeper
+	// is.Save(conn, cluster)
+
+	is := NewRecord(resource)
+	is.SetSimpleField("NUM_PARTITIONS", strconv.Itoa(partitions))
+	is.SetSimpleField("REPLICAS", strconv.Itoa(0))
+	is.SetSimpleField("REBALANCE_MODE", strings.ToUpper("SEMI_AUTO"))
+	is.SetSimpleField("STATE_MODEL_DEF_REF", stateModel)
+	conn.CreateRecordWithPath(isPath, is)
 
 	return nil
 }

@@ -10,7 +10,7 @@ import (
 	"code.google.com/p/go.crypto/ssh"
 )
 
-// AddTestCluster calls helix-admin.sh --zkSvr localhost:2181 --addCluster 
+// AddTestCluster calls helix-admin.sh --zkSvr localhost:2181 --addCluster
 func AddTestCluster(cluster string) error {
 	cmd := "/opt/helix/bin/helix-admin.sh --zkSvr localhost:2181 --addCluster " + strings.TrimSpace(cluster)
 	if _, err := RunCommand(cmd); err != nil {
@@ -19,7 +19,7 @@ func AddTestCluster(cluster string) error {
 	return nil
 }
 
-// AddNode /opt/helix/bin/helix-admin.sh --zkSvr localhost:2181  --addNode 
+// AddNode /opt/helix/bin/helix-admin.sh --zkSvr localhost:2181  --addNode
 func AddNode(cluster string, host string, port string) error {
 
 	cmd := fmt.Sprintf("/opt/helix/bin/helix-admin.sh --zkSvr localhost:2181  --addNode %s %s:%s", cluster, host, port)
@@ -38,7 +38,7 @@ func AddResource(cluster string, resource string, replica string) error {
 	return nil
 }
 
-// Rebalance /opt/helix/bin/helix-admin.sh --zkSvr localhost:2181 --rebalance 
+// Rebalance /opt/helix/bin/helix-admin.sh --zkSvr localhost:2181 --rebalance
 func Rebalance(cluster string, resource string, replica string) error {
 	cmd := fmt.Sprintf("/opt/helix/bin/helix-admin.sh --zkSvr localhost:2181 --rebalance %s %s %s", cluster, resource, replica)
 	if _, err := RunCommand(cmd); err != nil {
