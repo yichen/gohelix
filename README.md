@@ -1,9 +1,82 @@
-gohelix: Golang binding for Apache Helix
------
+# gohelix: Golang binding for Apache Helix
 
-This is an experimental helix client for Golang. It is under active development and not yet ready for production.
+Gohelix is an experimental helix client for Golang. It currently support functionalities of Helix spectator role, and partial support for Helix participant role. It also provides a command line utility that mirrows the functions of `helix-admin.sh`.
 
-# Helix Spectator
+## Quick Start
+
+The following steps demonstrate the what `gohelix` can do (and cannot do) how to setup a Helix cluster using `gohelix`. Since `gohelix` is a client-side library, it still has dependency on the zookeeper and a working helix controller. 
+
+### Prerequisit 
+More information about zookeeper can be found here: 
+
+* [http://zookeeper.apache.org/doc/r3.3.3/zookeeperStarted.html](http://zookeeper.apache.org/doc/r3.3.3/zookeeperStarted.html)
+
+Instructions on setting up a Helix controller can be found here:
+
+* [http://helix.apache.org/0.7.0-incubating-docs/Quickstart.html](http://helix.apache.org/0.7.0-incubating-docs/Quickstart.html)
+
+### Download and install helix cli
+
+```shell
+go get github.com/yichen/gohelix/helix
+```
+
+This will install the command line utility `helix`. After installation, run `helix` from command line with no arguments you should see a list of subcommands. The commands follow this format:
+
+```
+helix -z [zookeeper address] {subcommand} arguments...
+```
+
+That is, the first argument is the zookeeper address. If this is not specified, it is default to `localhost:2181`.
+
+### Use helix cli
+
+* To create a cluster from zookeeper:
+
+```
+helix -z localhost:2181 addCluster MYCLUSTER
+```
+
+* Add three nodes to be managed by helix for the cluster MYCLUSTER. The three nodes are `localhost:12913`, `localhost:12914`, `localhost:12915`
+
+```
+helix -z localhost:2181 addNode MYCLUSTER localhost:12913
+helix -z localhost:2181 addNode MYCLUSTER localhost:12914
+helix -z localhost:2181 addNode MYCLUSTER localhost:12915
+```
+
+* Add a database `myDB` as a resource to be managed by helix cluster
+
+Now, we want the helix cluster to manage the resource `myDB`. Define the resource to have 8 partitions, and we will use a state model `MasterSlave`
+
+```
+helix -z localhost:2181 addResource MYCLUSTER myDB 8 MasterSlave
+```
+
+* To inspect the cluster
+
+To list all clusters managed by helix:
+
+```
+helix -z localhost:2181 listClusters
+```
+
+To show details of a cluster
+
+```
+helix -z localhost:2181 listClusterInfo MYCLUSTER
+```
+
+* To remove a cluster from helix:
+
+```
+helix -z localhost:2181 dropCluster MYCLUSTER
+```
+
+
+## Helix Spectator
+
+The helix cli tool is playing the Helix Spectator role. The following example shows how to make the most of the spectator role by listening to the cluster state changes. 
 
 ```go
 

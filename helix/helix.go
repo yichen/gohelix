@@ -21,6 +21,7 @@ func main() {
 	app.Usage = "helix"
 	app.Author = "Yi Chen"
 	app.Email = "yichen@outlook.com"
+	app.Version = "0.0.1"
 	app.Flags = []cli.Flag{
 		cli.StringFlag{
 			Name:   "zkSvr, z",
@@ -53,7 +54,7 @@ func main() {
 			Name:  "dropCluster",
 			Usage: "remove a cluster",
 			Action: func(c *cli.Context) {
-				if err := mustArgc(c, 2); err != nil {
+				if err := mustArgc(c, 1); err != nil {
 					fmt.Println(err.Error())
 				}
 
@@ -81,6 +82,9 @@ func main() {
 				// if node is the form of host:port, convert to host_port
 				if strings.Contains(node, ":") {
 					node = strings.Replace(node, ":", "_", 1)
+				} else {
+					fmt.Println("Wrong arguments: node is of the format HOST_PORT")
+					return
 				}
 
 				if err := admin.AddNode(cluster, node); err != nil {
