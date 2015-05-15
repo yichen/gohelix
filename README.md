@@ -2,18 +2,7 @@
 
 Gohelix is an experimental helix client for Golang. It currently support functionalities of Helix spectator role, and partial support for Helix participant role. It also provides a command line utility that mirrows the functions of `helix-admin.sh`.
 
-## Quick Start
-
-The following steps demonstrate the what `gohelix` can do (and cannot do) how to setup a Helix cluster using `gohelix`. Since `gohelix` is a client-side library, it still has dependency on the zookeeper and a working helix controller. 
-
-### Prerequisit 
-More information about zookeeper can be found here: 
-
-* [http://zookeeper.apache.org/doc/r3.3.3/zookeeperStarted.html](http://zookeeper.apache.org/doc/r3.3.3/zookeeperStarted.html)
-
-Instructions on setting up a Helix controller can be found here:
-
-* [http://helix.apache.org/0.7.0-incubating-docs/Quickstart.html](http://helix.apache.org/0.7.0-incubating-docs/Quickstart.html)
+## Command-line tool `helix`
 
 ### Download and install helix cli
 
@@ -29,7 +18,7 @@ helix -z [zookeeper address] {subcommand} arguments...
 
 That is, the first argument is the zookeeper address. If this is not specified, it is default to `localhost:2181`.
 
-### Use helix cli
+### Usage Samples
 
 * To create a cluster from zookeeper:
 
@@ -159,23 +148,5 @@ The helix cli tool is playing the Helix Spectator role. The following example sh
     signal.Notify(c, os.Interrupt, syscall.SIGTERM)
     <-c
 ```
-
-
-# Command-line tool `helix`
-
-To install the command-line tool:
-
-```
-go install github.com/yichen/gohelix/helix
-```
-
-To get the help:
-
-```
-helix -h
-```
-
-Most of the commands are mirroring the commands provided by Apache Helix `helix-admin.sh`
-
 
 
